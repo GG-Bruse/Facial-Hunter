@@ -1,0 +1,10 @@
+<RCC>
+    <qresource prefix="/">
+        <file>img/etc.png</file>
+        <file>img/network.png</file>
+        <file>img/protect.png</file>
+        <file>img/password.png</file>
+        <file>img/pass.png</file>
+        <file>img/nopass.png</file>
+    </qresource>
+</RCC>

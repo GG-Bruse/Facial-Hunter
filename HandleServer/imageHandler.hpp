@@ -7,12 +7,16 @@
 #include <nlohmann/json.hpp>
 #include <unistd.h>
 
+#include "Configurator.hpp"
 #include "../Common/LogMessage.hpp"
 
 using namespace std;
 using namespace DailyRecord;
+using namespace config;
 using namespace Ort;
 using json = nlohmann::json;
+
+extern Configurator* p_configurator;
 
 namespace imageHandle
 {
@@ -23,14 +27,15 @@ namespace imageHandle
             _env(Env(ORT_LOGGING_LEVEL_ERROR, "ONNXRuntime")),// 初始化 ONNX Runtime 环境
             _memoryInfo(MemoryInfo::CreateCpu(OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault))
         {
+            LoadFromConf();
+
             // 创建 ONNX Runtime 会话选项
             SessionOptions sessionOptions;
             sessionOptions.SetIntraOpNumThreads(2);  // 设置内部操作的线程数
             sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);  // 设置图优化级别
 
             // 加载 ONNX 模型
-            const string modelPath = "/home/bjy/FaceRecSysOnnx/HandleServer/models/inception_resnerv1/inception_resnerv1.onnx";
-            _session = new Session(_env, modelPath.c_str(), sessionOptions);
+            _session = new Session(_env, _modelPath.c_str(), sessionOptions);
 
             // 获取模型的输入信息
             size_t numInputNodes = _session->GetInputCount();
@@ -252,6 +257,19 @@ namespace imageHandle
             }
             return sqrt(sum);
         }
+
+    private:
+        bool LoadFromConf()
+        {
+            iniConfig config = p_configurator->GetConfigInformation();
+            _modelType = config._modelType;
+            _modelPath = config._modelPath;
+            return true;
+        }
+
+    private:
+        string _modelType;
+        string _modelPath;
 
     private:
         Env _env;

@@ -3,6 +3,7 @@
 #include "../Common/httplib.h"
 #include "../Common/Daemon.hpp"
 #include "imageHandler.hpp"
+#include "Configurator.hpp"
 #include <mutex>
 #include <nlohmann/json.hpp>
 
@@ -10,16 +11,24 @@ using namespace std;
 using namespace httplib;
 using namespace std;
 using namespace imageHandle;
+using namespace config;
 using json = nlohmann::json;
+
+Configurator* p_configurator = nullptr;
 
 int main(int argc, char* argv[])
 {
     if(argc != 3) {
-        cerr << "\nUsage: " << argv[0] << " modelPath  prot" << endl;
+        cerr << "\nUsage: " << argv[0] << " confPath  port" << endl;
         return 0;
     }
 
     //int fd = DaemonSelf(atoi(argv[1]));
+
+    //加载配置器
+    Configurator configurator;
+    if(!configurator.loadFile(string(argv[1]))) exit(-1);
+    p_configurator = &configurator;
     
     ImageHandler imageHandler;
     Server server;

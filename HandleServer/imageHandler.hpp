@@ -114,7 +114,7 @@ namespace imageHandle
                 if (item.is_number_float())
                     inputData1.push_back(item.get<float>());
             vector<float> inputData2;
-            for (const auto& item : jsonImages["data1"]) 
+            for (const auto& item : jsonImages["data2"]) 
                 if (item.is_number_float())
                     inputData2.push_back(item.get<float>());
 

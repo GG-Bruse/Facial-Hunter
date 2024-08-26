@@ -42,25 +42,12 @@ int main(int argc, char* argv[])
         response.set_header("Content-Type", "application/json");
         // 从请求主体中读取图像数据
         json jsonImage = json::parse(request.body);
-        // 将json转为vector<float>
-        if(!jsonImage.contains("data") || !jsonImage["data"].is_array()) 
-        {
-            vector<float> vectorImage;
-            for (const auto& item : jsonImage["data"]) 
-                if (item.is_number_float())
-                    vectorImage.push_back(item.get<float>());
-            
-            string outputStr = "错误, 识别失败, error";
-            //LOG(DEBUG) << "current thread:" << this_thread::get_id() << endl;
-            controller.HandleFaceImage(vectorImage, &outputStr);
-            // LOG(DEBUG) << outputStr << endl;
-            response.set_content(outputStr.c_str(), "application/json");
-        }
-        else 
-        {
-            string outputStr = "错误, 图像数据出错, error";
-            response.set_content(outputStr.c_str(), "application/json");
-        }
+        //处理
+        string outputStr = "错误, 识别失败, error";
+        //LOG(DEBUG) << "current thread:" << this_thread::get_id() << endl;
+        controller.HandleFaceImage(jsonImage, &outputStr);
+        // LOG(DEBUG) << outputStr << endl;
+        response.set_content(outputStr.c_str(), "text/plain");
     });
 
     server.listen("0.0.0.0", p_configurator->GetConfigInformation()._serverPort);

@@ -26,12 +26,20 @@ namespace Controller
     class Control
     {
     public:
-        void HandleFaceImage(const vector<float>& vectorImage, string* outputStr) 
+        void HandleFaceImage(const json& jsonImage, string* outputStr) 
         {
             string returnStr = "错误, 识别失败, error";
+
             //构造数据
             json imageDatas;
+            vector<float> vectorImage;
+            if(!jsonImage.contains("data") || !jsonImage["data"].is_array()) {
+                for (const auto& item : jsonImage["data"]) 
+                    if (item.is_number_float())
+                        vectorImage.push_back(item.get<float>());
+            }
             imageDatas["data1"] = vectorImage;
+
             // 获取数据库中所有人员的主键值(学号)
             vector<string> studentIdSet;
             _model.GetAllStudentID(studentIdSet);
@@ -44,8 +52,8 @@ namespace Controller
                 _model.GetFaceData(studentIdSet[i], faceDatas);
                 //添加参数, 检测单张人脸图片
                 imageDatas["data2"] = faceDatas[0];
-                double result = ProcessSinglePicture(imageDatas);
-                if(result > 1.1600 || result < 0) continue;
+                bool result = ProcessSinglePicture(imageDatas);
+                if(!result) continue;
                 // 小于阈值则初步判断为同一人, 继续比对人脸集中其他图片验证
                 bool flag = ProcessingCollectionPictures(vectorImage, vector<string>(faceDatas.begin() + 1, faceDatas.end()));
                 if(flag) { 
@@ -63,7 +71,7 @@ namespace Controller
         void RestoreHosts() { _loadBalancer.OnlineServerHost(); }
 
     private:
-        double ProcessSinglePicture(const json imageDatas)
+        bool ProcessSinglePicture(const json imageDatas)
         {
             //不断选择主机
             while(true) 
@@ -84,12 +92,10 @@ namespace Controller
                 if(httplib::Result ret = client.Post("/imageHandle", imageDatas))
                 {
                     if (ret->status == 200) {//http请求成功时状态码为200
-                        double responseData = stod(ret->body);
-                        if(responseData >= 0) {
-                            serverHost->ReduceLoad();
-                            LOG(NORMAL) << "Request code processing server successful" << endl;
-                            return responseData;
-                        }
+                        bool result = (ret->body) == "true" ? true : false;
+                        serverHost->ReduceLoad();
+                        LOG(NORMAL) << "Request code processing server successful" << endl;
+                        return result;
                     }
                     serverHost->ReduceLoad();
                 }
@@ -109,7 +115,7 @@ namespace Controller
         {
             if(faceDatas.size() == 0) return true;
 
-            vector<future<double>> resultV;//记录各个异步任务执行结果
+            vector<future<bool>> resultV;//记录各个异步任务执行结果
             int rightCount = 0;//正确的共有多少张图片
 
             json imageDatas;
@@ -125,7 +131,7 @@ namespace Controller
                         thisFaceVector.push_back(item.get<float>());
                 imageDatas["data2"] = thisFaceVector;
                 // 异步处理
-                future<double> fu = async(launch::async, &Control::ProcessSinglePicture, this, imageDatas);
+                future<bool> fu = async(launch::async, &Control::ProcessSinglePicture, this, imageDatas);
                 resultV.push_back(move(fu));
             }
             //计算结果
@@ -134,8 +140,8 @@ namespace Controller
                 try {
                     // 检查 future 是否有效并等待其完成
                     if (resultV[i].valid()) {
-                        double result = resultV[i].get();
-                        if (result >= 0.0 && result <= 0.85000) ++rightCount;
+                        bool result = resultV[i].get();
+                        if (result) ++rightCount;
                     }
                     else --i;
                 } catch (const exception& e) {

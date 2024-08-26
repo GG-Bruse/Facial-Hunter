@@ -1,4 +1,6 @@
+# nlohmann_json and onnxruntime
 LIB=/usr/local/lib64/
+INCLUDE=/usr/local/include/
 
 MYSQL_LIB=../thirdparty/mysql-connector-c/lib/
 MYSQL_INCLUDE=../thirdparty/mysql-connector-c/include/
@@ -12,8 +14,7 @@ MasterServer:MasterServer.cpp
 	g++ $^ -o $@ \
 	-L$(LIB) -L$(MYSQL_LIB) -I$(MYSQL_INCLUDE) \
 	-L$(INIPARSER_LIB) -I$(INIPARSER_INCLUDE) \
-	$(CPPFLAGS) \
-	`pkg-config --cflags opencv4` `pkg-config --libs opencv4` 
+	$(CPPFLAGS)
 
 .PHONY:clean
 clean:

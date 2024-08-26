@@ -33,43 +33,50 @@ namespace ModelLayer
     class Model
     {
     public:
-        Model():_database(new DateBase) { assert(LoadFromConf()); }
+        Model():_dataBase(new DateBase) { assert(LoadFromConf()); }
         ~Model() {}
     public:
-        bool GetAllFilePath(vector<vector<string>>& db)
+        bool GetAllStudentID(vector<string>& studentIdSet)
         {
-            if(db.size() != 0) return false;
+            string sql = "select * from " + _personnelSummaryTableName + ";";
+            bool result = GetDataFromMySQL(sql, 1);
+            studentIdSet = _allPersonID;
+            return result;
+        }
 
-            if(_data.size() != 0) {
-                shared_lock<shared_mutex> lock(_mutex);
-                db = _data; //曾获取过数据
-            }
-            else {
-                string sql = "select * from " + _tableName;
-                bool result = GetDataFromMySQL_one(sql);
-                shared_lock<shared_mutex> lock(_mutex);
-                db = _data;
-            }
-            return true;
+        bool GetFaceData(string studentID, vector<string>& faceDatas)
+        {
+            string sql = "select * from " + _facialInformationTableName + " where studentId = " + studentID + ";";
+            bool result = GetDataFromMySQL(sql, 2);
+            faceDatas = _faceDatas;
+            return result;
+        }
+
+        string GetName(string studentID)
+        {
+            string sql = "select * from " + _personnelSummaryTableName + " where studentId = " + studentID + ";";
+            GetDataFromMySQL(sql, 3);
+            return _name;
         }
 
     private:
-        bool GetDataFromMySQL_one(const string& sql) 
+        bool GetDataFromMySQL(const string& sql, int opt) 
         {
             MYSQL_RES* result = nullptr;
-            if(!_database->QueryMysql(sql, result)) return false;
+            if(!_dataBase->QueryMysql(sql, result)) return false;
 
             int row = mysql_num_rows(result);
-            
             //避免赋值到一半时，有线程读，此时_data已不是空
             _mutex.lock();
-            for(int i = 0; i < row; ++i) {
-                vector<string> tmp(3);
+            for(int i = 0; i < row; ++i) 
+            {
                 MYSQL_ROW lineMessage = mysql_fetch_row(result);
-                tmp[0] = lineMessage[0];
-                tmp[1] = lineMessage[1];
-                tmp[2] = lineMessage[2];
-                _data.push_back(tmp);
+                if(opt == 1)
+                    _allPersonID.push_back(lineMessage[0]);
+                else if(opt == 2)
+                    _faceDatas.push_back(lineMessage[1]);
+                else if(opt == 3)
+                    _name = lineMessage[1];
             }
             _mutex.unlock();
             
@@ -77,20 +84,26 @@ namespace ModelLayer
             return true;
         }
 
+    private:
         bool LoadFromConf()
         {
             iniConfig config = p_configurator->GetConfigInformation();
-            _tableName = config._tableName;
+            _personnelSummaryTableName = config._personnelSummaryTableName;
+            _facialInformationTableName = config._facialInformationTableName;
             return true;
         }
 
     private:
-        shared_ptr<DateBase> _database;
-        vector<vector<string>> _data;
-        //读写锁
-        mutable shared_mutex _mutex;// mutable 确保_mutex在const函数中也可以修改状态(加锁解锁)
+        shared_ptr<DateBase> _dataBase;
+        mutable shared_mutex _mutex;// 读写锁 mutable 确保_mutex在const函数中也可以修改状态(加锁解锁)
 
     private:
-        string _tableName;
+        string _personnelSummaryTableName;
+        string _facialInformationTableName;
+
+    private:
+        vector<string> _allPersonID;
+        vector<string> _faceDatas;
+        string _name;
     };
 }  

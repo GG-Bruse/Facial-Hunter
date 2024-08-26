@@ -7,57 +7,50 @@
 #include <future>
 #include <functional>
 #include <dirent.h>
+#include <nlohmann/json.hpp>
 #include "LoadBalancer.hpp"
 #include "ModelLayer.hpp"
 #include "../Common/httplib.h"
 #include "../Common/LogMessage.hpp"
-#include <opencv2/opencv.hpp>
 
 
 using namespace std;
-using namespace cv;
 using namespace LoadBalance;
 using namespace ModelLayer;
 using namespace httplib;
 using namespace DailyRecord;
+using json = nlohmann::json;
 
 namespace Controller
 {   
     class Control
     {
     public:
-        void HandleFaceImage(const Mat& image, string* outputStr) 
+        void HandleFaceImage(const vector<float>& vectorImage, string* outputStr) 
         {
             string returnStr = "错误, 识别失败, error";
-            //待比对图片
-            vector<uchar> buffer;
-            imencode(".jpg", image, buffer);
-            string imageData1(buffer.begin(), buffer.end());
-            //数据库图片
-            vector<vector<string>> db;
-            _model.GetAllFilePath(db);
-            //比对数据库中各个人脸集的第一张图片
-            for(int i = 0; i < db.size(); ++i)
+            //构造数据
+            json imageDatas;
+            imageDatas["data1"] = vectorImage;
+            // 获取数据库中所有人员的主键值(学号)
+            vector<string> studentIdSet;
+            _model.GetAllStudentID(studentIdSet);
+
+            //控制逻辑，先对比各个人的一份信息，若正确则继续对比
+            for(int i = 0; i < studentIdSet.size(); ++i)
             {
-                //每个人脸文件夹中的第一个文件
-                string filePath = db[i][2] + db[i][0] + "_1.jpg";
-                Mat testImage =  imread(filePath);
-                imencode(".jpg", testImage, buffer);
-                string imageData2(buffer.begin(), buffer.end());
-                //构造参数
-                MultipartFormDataItems items;
-                MultipartFormData data1{"image1", imageData1, "image1.jpg", "image/jpeg"};
-                MultipartFormData data2{"image2", imageData2, "image2.jpg", "image/jpeg"};
-                items.emplace_back(data1);
-                items.emplace_back(data2);
-                // 检测单张人脸图片
-                double result = ProcessSinglePicture(items);
+                //获取此人的所有人脸信息
+                vector<string> faceDatas;
+                _model.GetFaceData(studentIdSet[i], faceDatas);
+                //添加参数, 检测单张人脸图片
+                imageDatas["data2"] = faceDatas[0];
+                double result = ProcessSinglePicture(imageDatas);
                 if(result > 1.1600 || result < 0) continue;
                 // 小于阈值则初步判断为同一人, 继续比对人脸集中其他图片验证
-                bool flag = ProcessingCollectionPictures(imageData1, db[i][2], db[i][0] + "_1.jpg");
-                //找到, 返回
+                bool flag = ProcessingCollectionPictures(vectorImage, vector<string>(faceDatas.begin() + 1, faceDatas.end()));
                 if(flag) { 
-                    returnStr = ("正确, " + db[i][1] + ", " + db[i][0]);
+                    string name = _model.GetName(studentIdSet[i]);
+                    returnStr = ("正确, " + name + ", " + studentIdSet[i]);
                     *outputStr = returnStr;
                     return;
                 }
@@ -70,7 +63,7 @@ namespace Controller
         void RestoreHosts() { _loadBalancer.OnlineServerHost(); }
 
     private:
-        double ProcessSinglePicture(MultipartFormDataItems items)
+        double ProcessSinglePicture(const json imageDatas)
         {
             //不断选择主机
             while(true) 
@@ -88,7 +81,7 @@ namespace Controller
                 serverHost->GetIP() << " port:" << serverHost->GetPort() << " 当前主机负载为:" << serverHost->GetLoadSituation() << endl;
                 LOG(DEBUG) << "current thread:" <<this_thread::get_id() << endl;
                 //发送
-                if(httplib::Result ret = client.Post("/imageHandle", items))
+                if(httplib::Result ret = client.Post("/imageHandle", imageDatas))
                 {
                     if (ret->status == 200) {//http请求成功时状态码为200
                         double responseData = stod(ret->body);
@@ -112,66 +105,47 @@ namespace Controller
             return -1.0;
         }
 
-        bool ProcessingCollectionPictures(string& imageData1, const string& path, const string& firstFilePath)
+        bool ProcessingCollectionPictures(const vector<float> vectorImage, vector<string> faceDatas)
         {
+            if(faceDatas.size() == 0) return true;
+
             vector<future<double>> resultV;//记录各个异步任务执行结果
-            vector<uchar> buffer;
-            int totalCount = 0;//记录共有多少张图片
             int rightCount = 0;//正确的共有多少张图片
-            //读取文件夹
-            DIR* dir;
-            struct dirent* entry;
-            dir = opendir(path.c_str());
-            if (dir != NULL) 
+
+            json imageDatas;
+            imageDatas["data1"] = vectorImage;
+            //处理该ID的剩余所有人脸信息
+            for(int i = 0; i < faceDatas.size(); ++i)
             {
-                while ((entry = readdir(dir)) != NULL) 
-                {
-                    if (entry->d_type == DT_REG) //只处理普通文件，排除目录和特殊文件
-                    {
-                        string filename = entry->d_name;
-                        // LOG(DEBUG) << filename << endl;
-                        if (filename != firstFilePath) 
-                        {
-                            //Get人脸集目录中的对比图片
-                            Mat testImage =  imread(path + filename);
-                            imencode(".jpg", testImage, buffer);
-                            string imageData2(buffer.begin(), buffer.end());
-                            //构建数据
-                            MultipartFormDataItems itemss;
-                            MultipartFormData data1{"image1", imageData1, "image1.jpg", "image/jpeg"};
-                            MultipartFormData data2{"image2", imageData2, "image2.jpg", "image/jpeg"};
-                            itemss.emplace_back(data1);
-                            itemss.emplace_back(data2);
-                            // 异步处理
-                            future<double> fu = async(launch::async, &Control::ProcessSinglePicture, this, itemss);
-                            resultV.push_back(move(fu));
-                            ++totalCount;
-                        }
-                    }
-                }
-                closedir(dir);
-                //计算结果
-                for (int i = 0; i < resultV.size(); ++i) {
-                    try {
-                        // 检查 future 是否有效并等待其完成
-                        if (resultV[i].valid()) {
-                            double result = resultV[i].get();
-                            if (result >= 0.0 && result <= 0.85000) ++rightCount;
-                        }
-                        else --i;
-                    } catch (const exception& e) {
-                        LOG(ERROR) << "Error getting future result: " << e.what() << endl;
-                    }
-                }
-                //返回结果
-                LOG(DEBUG) << "totalCount:" << totalCount << ", rightCount:" << rightCount << endl;
-                if(totalCount == 0 && rightCount == 0) return true;
-                if(0.5 <= ((double)rightCount / (double)totalCount)) return true;
-                else return false;
-            } else {
-                LOG(ERROR) << "人脸集目录无法打开" << std::endl;
-                return false;
+                //构建数据
+                json thisFace = json::parse(faceDatas[i]);
+                vector<float> thisFaceVector;
+                for (const auto& item : thisFace["data"]) 
+                    if (item.is_number_float())
+                        thisFaceVector.push_back(item.get<float>());
+                imageDatas["data2"] = thisFaceVector;
+                // 异步处理
+                future<double> fu = async(launch::async, &Control::ProcessSinglePicture, this, imageDatas);
+                resultV.push_back(move(fu));
             }
+            //计算结果
+            for (int i = 0; i < resultV.size(); ++i) 
+            {
+                try {
+                    // 检查 future 是否有效并等待其完成
+                    if (resultV[i].valid()) {
+                        double result = resultV[i].get();
+                        if (result >= 0.0 && result <= 0.85000) ++rightCount;
+                    }
+                    else --i;
+                } catch (const exception& e) {
+                    LOG(ERROR) << "Error getting future result: " << e.what() << endl;
+                }
+            }
+            //返回结果
+            LOG(DEBUG) << "totalCount:" << faceDatas.size() << ", rightCount:" << rightCount << endl;
+            if(0.5 <= ((double)rightCount / (double)faceDatas.size())) return true;
+            else return false;
         }
 
     private:

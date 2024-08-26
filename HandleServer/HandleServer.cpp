@@ -28,6 +28,7 @@ int main(int argc, char* argv[])
     //加载配置器
     Configurator configurator;
     if(!configurator.loadFile(string(argv[1]))) exit(-1);
+    else LOG(NORMAL) << "Load Conf File Success" << endl;
     p_configurator = &configurator;
     
     ImageHandler imageHandler;
@@ -38,10 +39,10 @@ int main(int argc, char* argv[])
         // 从请求主体中读取图像数据
         json jsonImages = json::parse(request.body);
         // 过模型处理
-        double result = imageHandler.HandleImage(jsonImages);
+        string result = imageHandler.HandleImage(jsonImages);
         LOG(NORMAL) << "Response Value : " << result << endl;
         // 响应
-        response.set_content(std::to_string(result), "text/plain");
+        response.set_content(result, "text/plain");
     });
 
     server.listen("0.0.0.0", atoi(argv[2])); // 启动http服务

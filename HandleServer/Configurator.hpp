@@ -18,15 +18,17 @@ namespace config
     {
     public:
         iniConfig() {}
-        iniConfig(string modelType, string modelPath)
+        iniConfig(string modelType, string modelPath, double judgingRate)
         {
             _modelType = modelType;
             _modelPath = modelPath;
+            _judgingRate = judgingRate;
         }
 
     public://模型
         string _modelType;
         string _modelPath;
+        double _judgingRate;
     };
 
 
@@ -54,7 +56,8 @@ namespace config
             //模型
             const char* modelType = iniparser_getstring(ini, (char*)"MODEL:ModelType", nullptr);
             const char* modelPath = iniparser_getstring(ini, (char*)"MODEL:ModelPath", nullptr);
-            _config = iniConfig(string(modelType), string(modelPath));
+            double judgingRate = iniparser_getdouble(ini, (char*)"MODEL:JudgingRate", 1.0);
+            _config = iniConfig(string(modelType), string(modelPath), judgingRate);
             iniparser_freedict(ini);
             return (_isLoaded = true);
         }

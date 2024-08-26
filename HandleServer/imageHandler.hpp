@@ -111,7 +111,7 @@ namespace imageHandle
         // }
 
 
-        double HandleImage(const json& jsonImages)
+        string HandleImage(const json& jsonImages)
         {
             //构建数据
             vector<float> inputData1;
@@ -168,7 +168,8 @@ namespace imageHandle
             //计算L2范数
             double result = computeL2Norm(outputVector1, outputVector2);
 
-            return result;
+            if(result <= _judgingRate && result >= 0) return "true";
+            else return "false";
         }
 
     // private:
@@ -264,12 +265,14 @@ namespace imageHandle
             iniConfig config = p_configurator->GetConfigInformation();
             _modelType = config._modelType;
             _modelPath = config._modelPath;
+            _judgingRate = config._judgingRate;
             return true;
         }
 
     private:
         string _modelType;
         string _modelPath;
+        double _judgingRate;
 
     private:
         Env _env;

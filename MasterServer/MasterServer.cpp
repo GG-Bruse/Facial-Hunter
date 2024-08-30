@@ -38,8 +38,6 @@ int main(int argc, char* argv[])
     p_controller = &controller;
 
     server.Post("/image", [&](const Request& request, Response& response) {
-        //设置响应头
-        response.set_header("Content-Type", "application/json");
         // 从请求主体中读取图像数据
         json jsonImage = json::parse(request.body);
         //处理

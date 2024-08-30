@@ -71,13 +71,12 @@ namespace config
                 LOG(NORMAL) << "INI configuration file loaded" << endl;
                 return true;
             }
-
             dictionary* ini = iniparser_load((char*)path.c_str());
             if (ini==NULL) {
                 LOG(ERROR) << "Cannot Parse File:" << path.c_str() << endl;
                 return false;
             }
-
+            
             //数据库
             const char* ip = iniparser_getstring(ini, (char*)"DATABASE:IP", nullptr);
             int port = iniparser_getint(ini, (char*)"DATABASE:Port", 3306);
@@ -87,12 +86,12 @@ namespace config
             const char* table1 = iniparser_getstring(ini, (char*)"DATABASE:PersonnelSummaryTableName", nullptr);
             const char* table2 = iniparser_getstring(ini, (char*)"DATABASE:FacialInformationTableName", nullptr);
             //本机器
-            int sport = iniparser_getint(ini, (char*)"SERVER:Port", 80);
+            int sport = iniparser_getint(ini, (char*)"SERVER:Port", 80); 
             //做负载均衡的机器
             const char* ipPort = iniparser_getstring(ini, (char*)"HANDSERVER:Address", nullptr);
-            
-            _config = iniConfig(string(ip), port, string(user), string(password), string(database), string(table1), string(table2), sport, string(ipPort));
 
+            _config = iniConfig(string(ip), port, string(user), string(password), string(database), string(table1), string(table2), sport, string(ipPort));
+            
             iniparser_freedict(ini);
 
             return (_isLoaded = true);

@@ -4,7 +4,7 @@
 #include <mutex>
 #include <cassert>
 // #include <jsoncpp/json/json.h>
-#include "include/mysql.h"
+#include "mysql.h"
 #include "Configurator.hpp"
 #include "../Common/LogMessage.hpp"
 #include "../Common/ComponentTool.hpp"
@@ -71,7 +71,7 @@ namespace DataBases
         {
             if (nullptr == mysql_real_connect(_mysql_fp, _dataBaseIP.c_str(), _dataBaseUser.c_str(), \
                 _dataBasePassword.c_str(), _dataBaseName.c_str(), _dataBasePort, nullptr, 0)) {
-                LOG(ERROR) << " Failed to access MySQL" << endl;
+                LOG(ERROR) << " Failed to access MySQL:" << mysql_error(_mysql_fp) << endl;
                 return false;
             }
             mysql_set_character_set(_mysql_fp, "utf8");

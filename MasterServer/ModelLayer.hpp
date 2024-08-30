@@ -12,7 +12,7 @@
 #include "Configurator.hpp"
 #include "../Common/ComponentTool.hpp"
 #include "../Common/LogMessage.hpp"
-#include "include/mysql.h"
+#include "mysql.h"
 
 using std::cout;
 using std::string;

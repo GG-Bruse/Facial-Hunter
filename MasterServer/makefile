@@ -12,7 +12,8 @@ CPPFLAGS=-O3 -std=c++17 -lpthread -lmysqlclient -liniparser
 
 MasterServer:MasterServer.cpp
 	g++ $^ -o $@ \
-	-L$(LIB) -L$(MYSQL_LIB) -I$(MYSQL_INCLUDE) \
+	-L$(LIB) -I$(INCLUDE) \
+	-L$(MYSQL_LIB) -I$(MYSQL_INCLUDE) \
 	-L$(INIPARSER_LIB) -I$(INIPARSER_INCLUDE) \
 	$(CPPFLAGS)
 

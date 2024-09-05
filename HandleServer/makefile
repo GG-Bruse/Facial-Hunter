@@ -9,7 +9,8 @@ CPPFLAGS=-std=c++17 -lpthread -lonnxruntime -liniparser -O3
 
 HandleServer:HandleServer.cpp
 	g++ $^ -o $@ \
-	-L$(LIB) -I$(INCLUDE) -I$(INIPARSER_INCLUDE) -L$(INIPARSER_LIB) $(CPPFLAGS) 
+	-L$(LIB) -I$(INCLUDE) -I$(INIPARSER_INCLUDE) -L$(INIPARSER_LIB) $(CPPFLAGS) \
+	`pkg-config --cflags opencv4` `pkg-config --libs opencv4` 
 	
 .PHONY:clean
 clean:

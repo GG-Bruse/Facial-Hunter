@@ -1,2 +1,2 @@
-. bin.init.sh
+. bin/init.sh
 make clean && make

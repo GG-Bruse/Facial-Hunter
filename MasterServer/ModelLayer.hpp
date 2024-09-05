@@ -47,6 +47,7 @@ namespace ModelLayer
         bool GetFaceData(string studentID, vector<string>& faceDatas)
         {
             string sql = "select * from " + _facialInformationTableName + " where studentId = " + studentID + ";";
+            _faceDatas.resize(0);
             bool result = GetDataFromMySQL(sql, 2);
             faceDatas = _faceDatas;
             return result;

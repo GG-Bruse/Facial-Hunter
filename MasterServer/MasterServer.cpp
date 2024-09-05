@@ -7,6 +7,7 @@
 #include "Controller.hpp"
 #include "Configurator.hpp"
 #include <nlohmann/json.hpp>
+#include <fstream>
 
 using namespace std;
 using namespace httplib;
@@ -39,11 +40,21 @@ int main(int argc, char* argv[])
 
     server.Post("/image", [&](const Request& request, Response& response) {
         // 从请求主体中读取图像数据
-        json jsonImage = json::parse(request.body);
+        vector<unsigned char> imageData(request.body.begin(), request.body.end());
+
+        // json jsonImage = imageData;
+        // std::ofstream file("output.jsonl");
+        // if (file.is_open()) {
+        //     file << jsonImage.dump() << "\n";
+        //     file.close();
+        // } else {
+        //     std::cerr << "Unable to open file" << std::endl;
+        // }
+
         //处理
         string outputStr = "错误, 识别失败, error";
-        //LOG(DEBUG) << "current thread:" << this_thread::get_id() << endl;
-        controller.HandleFaceImage(jsonImage, &outputStr);
+        // LOG(DEBUG) << "current thread:" << this_thread::get_id() << endl;
+        controller.HandleFaceImage(imageData, &outputStr);
         // LOG(DEBUG) << outputStr << endl;
         response.set_content(outputStr.c_str(), "text/plain");
     });

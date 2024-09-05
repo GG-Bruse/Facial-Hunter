@@ -8,7 +8,7 @@ MYSQL_INCLUDE=../thirdparty/mysql-connector-c/include/
 INIPARSER_LIB=../thirdparty/iniparser/lib/
 INIPARSER_INCLUDE=../thirdparty/iniparser/include/
 
-CPPFLAGS=-O3 -std=c++17 -lpthread -lmysqlclient -liniparser
+CPPFLAGS=-O2 -g -std=c++17 -lpthread -lmysqlclient -liniparser
 
 MasterServer:MasterServer.cpp
 	g++ $^ -o $@ \

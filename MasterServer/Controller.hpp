@@ -26,19 +26,12 @@ namespace Controller
     class Control
     {
     public:
-        void HandleFaceImage(const json& jsonImage, string* outputStr) 
+        void HandleFaceImage(const vector<unsigned char> imageData1, string* outputStr) 
         {
             string returnStr = "错误, 识别失败, error";
-
             //构造数据
             json imageDatas;
-            vector<float> vectorImage;
-            if(!jsonImage.contains("data") || !jsonImage["data"].is_array()) {
-                for (const auto& item : jsonImage["data"]) 
-                    if (item.is_number_float())
-                        vectorImage.push_back(item.get<float>());
-            }
-            imageDatas["data1"] = vectorImage;
+            imageDatas["data1"] = imageData1;
 
             // 获取数据库中所有人员的主键值(学号)
             vector<string> studentIdSet;
@@ -49,13 +42,17 @@ namespace Controller
             {
                 //获取此人的所有人脸信息
                 vector<string> faceDatas;
-                _model.GetFaceData(studentIdSet[i], faceDatas);
+                if(!_model.GetFaceData(studentIdSet[i], faceDatas)) LOG(ERROR) << "Get Face Data ERROR" << endl;
+                else LOG(DEBUG) << "faceDatas size:" << faceDatas.size() << endl;
+
                 //添加参数, 检测单张人脸图片
-                imageDatas["data2"] = faceDatas[0];
+                imageDatas["data2"] = json::parse(faceDatas[0]);
                 bool result = ProcessSinglePicture(imageDatas);
                 if(!result) continue;
+                
                 // 小于阈值则初步判断为同一人, 继续比对人脸集中其他图片验证
-                bool flag = ProcessingCollectionPictures(vectorImage, vector<string>(faceDatas.begin() + 1, faceDatas.end()));
+                bool flag = ProcessingCollectionPictures(imageData1, vector<string>(faceDatas.begin() + 1, faceDatas.end()));
+                LOG(DEBUG) << flag << endl;
                 if(flag) { 
                     string name = _model.GetName(studentIdSet[i]);
                     returnStr = ("正确, " + name + ", " + studentIdSet[i]);
@@ -89,13 +86,23 @@ namespace Controller
                 serverHost->GetIP() << " port:" << serverHost->GetPort() << " 当前主机负载为:" << serverHost->GetLoadSituation() << endl;
                 LOG(DEBUG) << "current thread:" <<this_thread::get_id() << endl;
                 //发送
-                if(httplib::Result ret = client.Post("/imageHandle", imageDatas))
+                if(httplib::Result ret = client.Post("/imageHandle", imageDatas.dump(), "application/json"))
                 {
-                    if (ret->status == 200) {//http请求成功时状态码为200
-                        bool result = (ret->body) == "true" ? true : false;
-                        serverHost->ReduceLoad();
-                        LOG(NORMAL) << "Request code processing server successful" << endl;
-                        return result;
+                    if(ret)
+                    {
+                        if (ret->status == 200) {//http请求成功时状态码为200
+                            bool result = (ret->body) == "true" ? true : false;
+                            serverHost->ReduceLoad();
+                            // LOG(DEBUG) << result << endl;
+                            LOG(NORMAL) << "Request code processing server successful" << endl;
+                            return result;
+                        }
+                        else {
+                            LOG(DEBUG) << ret->status << endl;
+                        }
+                    }
+                     else {
+                        LOG(ERROR) << ret.error() << endl;
                     }
                     serverHost->ReduceLoad();
                 }
@@ -111,8 +118,9 @@ namespace Controller
             return -1.0;
         }
 
-        bool ProcessingCollectionPictures(const vector<float> vectorImage, vector<string> faceDatas)
+        bool ProcessingCollectionPictures(const vector<unsigned char>& vectorImage, vector<string> faceDatas)
         {
+            // LOG(DEBUG) << "faceDatas size:" << faceDatas.size() << endl;
             if(faceDatas.size() == 0) return true;
 
             vector<future<bool>> resultV;//记录各个异步任务执行结果
@@ -125,11 +133,7 @@ namespace Controller
             {
                 //构建数据
                 json thisFace = json::parse(faceDatas[i]);
-                vector<float> thisFaceVector;
-                for (const auto& item : thisFace["data"]) 
-                    if (item.is_number_float())
-                        thisFaceVector.push_back(item.get<float>());
-                imageDatas["data2"] = thisFaceVector;
+                imageDatas["data2"] = thisFace;
                 // 异步处理
                 future<bool> fu = async(launch::async, &Control::ProcessSinglePicture, this, imageDatas);
                 resultV.push_back(move(fu));

@@ -42,7 +42,7 @@ int main(int argc, char* argv[])
         // 从请求主体中读取图像数据
         vector<unsigned char> imageData(request.body.begin(), request.body.end());
 
-        // 需要向MySQL插入数据时, 放开该代码
+        // // 需要向MySQL插入数据时, 放开该代码
         // json jsonImage = imageData;
         // std::ofstream file("output.jsonl");
         // if (file.is_open()) {

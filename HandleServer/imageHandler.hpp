@@ -168,6 +168,7 @@ namespace imageHandle
 
             //计算L2范数
             double result = computeL2Norm(outputVector1, outputVector2);
+            LOG(NORMAL) << "Inference results:" << result << endl;
 
             if(result <= _judgingRate && result >= 0) return "true";
             else return "false";

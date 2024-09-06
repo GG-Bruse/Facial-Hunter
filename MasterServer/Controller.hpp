@@ -52,7 +52,6 @@ namespace Controller
                 
                 // 小于阈值则初步判断为同一人, 继续比对人脸集中其他图片验证
                 bool flag = ProcessingCollectionPictures(imageData1, vector<string>(faceDatas.begin() + 1, faceDatas.end()));
-                LOG(DEBUG) << flag << endl;
                 if(flag) { 
                     string name = _model.GetName(studentIdSet[i]);
                     returnStr = ("正确, " + name + ", " + studentIdSet[i]);

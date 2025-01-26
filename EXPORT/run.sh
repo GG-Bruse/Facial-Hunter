@@ -4,12 +4,8 @@ conda activate image
 python ./builder/builder.py --backbone inception_resnetv1 --model_path ./model/facenet_inception_resnetv1.pth --output_file ./output/facenet_model_inception_resnetv1.onnx
 python ./builder/builder.py --backbone mobilenet --model_path ./model/facenet_mobilenet.pth --output_file ./output/facenet_model_mobilenet.onnx
 
-# # remove_initializer_from_input
-# python ./src/remove_initializer_from_input.py --input ./export_onnx/facenet_model_inception_resnetv1.onnx  --output ./export_onnx/inception_resnerv1.onnx
-# python ./src/remove_initializer_from_input.py --input ./export_onnx/facenet_model_mobilenet.onnx  --output ./export_onnx/mobilenet.onnx
-
-# inference
-python ./src/check.py ./export_onnx/inception_resnerv1.onnx
-python ./src/check.py ./export_onnx/mobilenet.onnx
+# inference TODO:暂时只做了个别数据的比较, 应该进行大量的测试, 计算跳变率和差不匹配比例
+python ./inference/inference.py --backbone inception_resnetv1 --onnx_path ./output/facenet_model_inception_resnetv1.onnx --model_path ./model/facenet_inception_resnetv1.pth
+python ./inference/inference.py --backbone mobilenet --onnx_path ./output/facenet_model_mobilenet.onnx --model_path ./model/facenet_mobilenet.pth
 
 conda deactivate

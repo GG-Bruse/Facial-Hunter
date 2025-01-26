@@ -1,10 +1,16 @@
-import sys
 import onnx
 import onnxruntime as ort
 import numpy as np
 import torch
 from PIL import Image
-from facenet import Facenet
+
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from facenet.facenet import Facenet
+import argparse
+
+
 
 # 对输入图像进行resize(通过添加灰条进行不失真的resize)
 def resize_image(image, size, letterbox_image):
@@ -35,14 +41,8 @@ def preprocess_input(image):
 
 
 
-
-
-def check(file_path):
-    # 加载 ONNX 模型
-    model = onnx.load(file_path)
-    print(model.ir_version)
-
-    # 检查模型是否有效
+def main(args):
+    model = onnx.load(args.onnx_path)
     try:
         onnx.checker.check_model(model)
         print("模型验证通过")
@@ -50,77 +50,61 @@ def check(file_path):
         print("模型验证失败:", e)
 
     # 创建 ONNX Runtime 会话
-    session = ort.InferenceSession(file_path)
+    session = ort.InferenceSession(args.onnx_path)
+    print("Input names:", [input.name for input in session.get_inputs()])
+    print("Output names:", [output.name for output in session.get_outputs()])
 
-    # 创建输入数据1
-    image = Image.open("/home/bjy/FaceRecSysOnnx/face_image_dir/2130622004/2130622004_1.jpg")
-    image = resize_image(image, [160, 160], True)
-    photo = np.expand_dims(np.transpose(preprocess_input(np.array(image, np.float32)), (2, 0, 1)), 0)
-    input_name = session.get_inputs()[0].name
-    print(photo)
-
-    # 运行推理
-    inputs = {input_name: photo}
-    outputs1 = session.run(None, inputs)
-    output1 = outputs1[0]
-    print("ONNX1")
-    print(output1)
-
-    with torch.no_grad():
-        model = Facenet(backbone="inception_resnetv1").eval()
-        model.load_state_dict(torch.load("/home/bjy/FaceRecSysOnnx/EXPORT/model_data/facenet_inception_resnetv1.pth", map_location="cpu"), strict=False)
-        
-        input_data = torch.from_numpy(photo)
-        output_data1 = model(input_data).cpu().numpy()
-        print("pytorch1")
-        print(output_data1)
-
-
-
-
-
-
-
-    # 创建输入数据2
-    image = Image.open("/home/bjy/FaceRecSysOnnx/face_image_dir/2130622004/2130622004_3.jpg")
-    image = resize_image(image, [160, 160], True)
-    photo = np.expand_dims(np.transpose(preprocess_input(np.array(image, np.float32)), (2, 0, 1)), 0)
-    input_name = session.get_inputs()[0].name
-    print(photo)
+    # 创建输入数据
+    image1 = Image.open("/data/baojiayi/Facial-Hunter/EXPORT/image/1_001.jpg")
+    image2 = Image.open("/data/baojiayi/Facial-Hunter/EXPORT/image/2_001.jpg")
+    image1 = resize_image(image1, [160, 160], True)
+    image2 = resize_image(image2, [160, 160], True)
+    photo1 = np.expand_dims(np.transpose(preprocess_input(np.array(image1, np.float32)), (2, 0, 1)), 0)
+    photo2 = np.expand_dims(np.transpose(preprocess_input(np.array(image2, np.float32)), (2, 0, 1)), 0)
+    photos = np.concatenate([photo1, photo2], axis=0)
+    print("Input shape:", photos.shape)
 
     # 运行推理
-    inputs = {input_name: photo}
-    outputs2 = session.run(None, inputs)
-    output2 = outputs2[0]
-    print("ONNX2")
-    print(output2)
+    input_name = session.get_inputs()[0].name
+    output_name = session.get_outputs()[0].name
+    outputs = session.run([output_name], {input_name: photos})[0]
+    output1 = outputs[0]
+    output2 = outputs[1]
+    # print("output1", output1)
+    # print("output1 shape", output1.shape)
+    # print("output2", output2)
+    # print("output2 shape", output2.shape)
 
+    l1 = np.linalg.norm(output1 - output2, axis=0)
+    result = l1.item()
+    print('result onnx', result)
 
 
     with torch.no_grad():
-        model = Facenet(backbone="inception_resnetv1").eval()
-        model.load_state_dict(torch.load("/home/bjy/FaceRecSysOnnx/EXPORT/model_data/facenet_inception_resnetv1.pth", map_location="cpu"), strict=False)
+        model = Facenet(backbone=args.backbone).eval()
+        tensor_dict = torch.load(args.model_path, map_location="cpu", weights_only=True)
+        del tensor_dict['classifier.weight']
+        del tensor_dict['classifier.bias']
+        model.load_state_dict(tensor_dict)
         
-        input_data = torch.from_numpy(photo)
-        output_data2 = model(input_data).cpu().numpy()
-        print("pytorch2")
-        print(output_data2)
-
-
-    l2 = np.linalg.norm(output1 - output2, axis=1)
-    value_float = l2.item()
-    print("ressult ONNX")
-    print(value_float)
-
-    l2 = np.linalg.norm(output_data1 - output_data2, axis=1)
-    value_float = l2.item()
-    print("ressult pytorch")
-    print(value_float)
-
-    
+        input_data1 = torch.from_numpy(photo1)
+        input_data2 = torch.from_numpy(photo2)
+        output_data1 = model(input_data1).cpu().numpy()[0]
+        output_data2 = model(input_data2).cpu().numpy()[0]
+        # print("output1:", output_data1)
+        # print("output2:", output_data2)
+        # print("output1 shape:", output_data1.shape)
+        # print("output2 shape:", output_data2.shape)
+        l1 = np.linalg.norm(output_data1 - output_data2, axis=0)
+        result = l1.item()
+        print('result python:', result)
 
 
 
 if __name__ == "__main__":
-    arg = sys.argv[1]
-    check(arg)
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument('--backbone', default='inception_resnetv1')
+    argparser.add_argument('--onnx_path', default='./output/facenet_model_inception_resnetv1.onnx')
+    argparser.add_argument('--model_path', default='./model/facenet_inception_resnetv1.pth')
+    args = argparser.parse_args()
+    main(args)

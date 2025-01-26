@@ -1,17 +1,24 @@
+#pragma once
 #include <iostream>
 #include <vector>
 #include <string>
 #include <cmath>
 #include <onnxruntime/core/session/onnxruntime_cxx_api.h>
-#include <opencv2/opencv.hpp>
+#include <nlohmann/json.hpp>
 #include <unistd.h>
+#include <opencv2/opencv.hpp>
 
+#include "Configurator.hpp"
 #include "../Common/LogMessage.hpp"
 
 using namespace std;
 using namespace DailyRecord;
+using namespace config;
 using namespace Ort;
 using namespace cv;
+using json = nlohmann::json;
+
+extern Configurator* p_configurator;
 
 namespace imageHandle
 {
@@ -22,14 +29,15 @@ namespace imageHandle
             _env(Env(ORT_LOGGING_LEVEL_ERROR, "ONNXRuntime")),// 初始化 ONNX Runtime 环境
             _memoryInfo(MemoryInfo::CreateCpu(OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault))
         {
+            LoadFromConf();
+
             // 创建 ONNX Runtime 会话选项
             SessionOptions sessionOptions;
             sessionOptions.SetIntraOpNumThreads(2);  // 设置内部操作的线程数
             sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);  // 设置图优化级别
 
             // 加载 ONNX 模型
-            const string modelPath = "/home/bjy/FaceRecSysOnnx/HandleServer/models/inception_resnerv1/inception_resnerv1.onnx";
-            _session = new Session(_env, modelPath.c_str(), sessionOptions);
+            _session = new Session(_env, _modelPath.c_str(), sessionOptions);
 
             // 获取模型的输入信息
             size_t numInputNodes = _session->GetInputCount();
@@ -105,24 +113,16 @@ namespace imageHandle
         // }
 
 
-        double HandleImage(Mat& image1, Mat& image2)
+        string HandleImage(const json& jsonImages)
         {
-            // 图像预处理
-            preprocessImage(image1);
-            preprocessImage(image2);
-            
-            // 准备输入数据
+            //构建数据
+            vector<unsigned char> Data1;
+            vector<unsigned char> Data2;
+            jsonToVector(jsonImages, Data1, Data2);
+            Mat image1 = cv::imdecode(Data1, cv::IMREAD_COLOR);
+            Mat image2 = cv::imdecode(Data2, cv::IMREAD_COLOR);
             vector<float> inputData1 = matToVector(image1);
             vector<float> inputData2 = matToVector(image2);
-
-            sleep(2);
-            
-            // cout << "inputData:";
-            // for(int i = 0; i < 10; ++i) cout << inputData1[i] << " ";
-            // cout << endl;
-            // for(int i = 0; i < 10; ++i) cout << inputData2[i] << " ";
-            // cout << endl;
-            // cout << "over";
 
             // 创建ONNX输入张量
             Value inputTensor1 = Value::CreateTensor<float> (
@@ -168,65 +168,28 @@ namespace imageHandle
 
             //计算L2范数
             double result = computeL2Norm(outputVector1, outputVector2);
+            LOG(NORMAL) << "Inference results:" << result << endl;
 
-            return result;
+            if(result <= _judgingRate && result >= 0) return "true";
+            else return "false";
         }
 
     private:
-        void preprocessImage(Mat& image) 
+        bool jsonToVector(const json& jsonImages, vector<unsigned char>& Data1, vector<unsigned char>& Data2)
         {
-            int width = _inputTensorShape[2], height = _inputTensorShape[3];
-            //LOG(NORMAL) << "width:" << width << "  height:" << height << endl;
-            // 调整图像大小
-            image = resizeImage(image, cv::Size(width, height));
-            // COLOR_BGR2RGB
-            Mat imageRGB;
-            cvtColor(image, imageRGB, cv::COLOR_BGR2RGB);
-            image = imageRGB;
-            // 将像素值归一化到 [0,1] 
-            Mat imageFloat;
-            image.convertTo(imageFloat, CV_32F, 1.0 / 255.0);
-            image = imageFloat;
-        }
-
-        Mat resize_image_backup(const Mat& image, const Size& newSize, bool letterboxImage) {
-            Mat resizedImage;
-            if (letterboxImage) {
-                resize(image, resizedImage, newSize);
-            } else {
-                resize(image, resizedImage, newSize, 0, 0, INTER_LINEAR);
+            for (const auto& item : jsonImages["data1"]) {
+                if (item.is_number() && item >= 0 && item <= 255) {
+                    //cout << item.get<int>() << endl;
+                    Data1.push_back(static_cast<unsigned char>(item.get<int>()));
+                }
             }
-            return resizedImage;
-        }
-
-        Mat resizeImage(const cv::Mat& image, const cv::Size& size) {
-            // 获取原始图像的宽度和高度
-            int iw = image.cols;
-            int ih = image.rows;
-            // 从size获取目标图像的宽度和高度
-            int w = size.width;
-            int h = size.height;
-            // 计算缩放比例
-            double scale = std::min(static_cast<double>(w) / iw, static_cast<double>(h) / ih);
-            // 根据缩放比例计算新的宽度和高度
-            int nw = static_cast<int>(iw * scale);
-            int nh = static_cast<int>(ih * scale);
-
-            // 调整图像大小
-            Mat resizedImage;
-            resize(image, resizedImage, cv::Size(nw, nh), 0, 0, cv::INTER_CUBIC);
-
-            // 创建一个新的背景图像
-            Mat newImage(size, CV_8UC3, cv::Scalar(128, 128, 128));
-            
-            // 计算粘贴位置
-            int xOffset = (w - nw) / 2;
-            int yOffset = (h - nh) / 2;
-
-            // 将调整后的图像粘贴到新图像上
-            resizedImage.copyTo(newImage(cv::Rect(xOffset, yOffset, nw, nh)));
-
-            return newImage;
+            for (const auto& item : jsonImages["data2"]) {
+                if (item.is_number() && item >= 0 && item <= 255) {
+                    //cout << item.get<int>() << endl;
+                    Data2.push_back(static_cast<unsigned char>(item.get<int>()));
+                }
+            }
+            return true;
         }
 
         vector<float> matToVector(const cv::Mat& mat) 
@@ -258,6 +221,21 @@ namespace imageHandle
             }
             return sqrt(sum);
         }
+
+    private:
+        bool LoadFromConf()
+        {
+            iniConfig config = p_configurator->GetConfigInformation();
+            _modelType = config._modelType;
+            _modelPath = config._modelPath;
+            _judgingRate = config._judgingRate;
+            return true;
+        }
+
+    private:
+        string _modelType;
+        string _modelPath;
+        double _judgingRate;
 
     private:
         Env _env;
